@@ -41,7 +41,6 @@ import { isExcludedFile } from './excludedFiles'
 import { getBusinessDb, parseMessageHistory, requireOrgAndUser } from './project'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { captureAndStoreScreenshot } from './screenshot-service'
-import {env} from "../../env.mjs";
 
 /**
  * Sandbox cleanup result interface
@@ -278,7 +277,8 @@ export async function prepareContainer(
 ): Promise<any> {
   await ensureSandboxEnv()
 
-  const envProvider = env.NEXT_PUBLIC_SANDBOX_DEFAULT_PROVIDER as SandboxProviderType
+  const envProvider = (process.env.NEXT_PUBLIC_SANDBOX_DEFAULT_PROVIDER ||
+    'e2b') as SandboxProviderType
   // Use unified configuration for template selection
   const TEMPLATE = TEMPLATE_MAPPINGS.getTemplateForProvider(envProvider || 'e2b', 'basic')
 
