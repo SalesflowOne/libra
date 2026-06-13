@@ -148,12 +148,31 @@ async function ensureSandboxFactory(): Promise<boolean> {
  * @returns {Promise<any>} Sandbox instance (ISandbox or native E2B)
  * @throws {Error} If both abstraction layer and E2B fallback fail
  */
+function assertSandboxCredentials(provider: SandboxProviderType): void {
+  if (provider === 'e2b' && !process.env.E2B_API_KEY?.trim()) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message:
+        'Sandbox provider is not configured. Set E2B_API_KEY on the worker (https://e2b.dev/dashboard?tab=keys).',
+    })
+  }
+
+  if (provider === 'daytona' && !process.env.DAYTONA_API_KEY?.trim()) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message:
+        'Sandbox provider is not configured. Set DAYTONA_API_KEY on the worker or switch NEXT_PUBLIC_SANDBOX_DEFAULT_PROVIDER to e2b.',
+    })
+  }
+}
+
 export async function getSandboxInstance(
   operation: 'create' | 'connect' | 'resume',
   templateOrId: string,
   options: { timeoutMs?: number } = {}
 ): Promise<any> {
   const provider = getDefaultSandboxProvider()
+  assertSandboxCredentials(provider)
 
   const factoryAvailable = await ensureSandboxFactory()
 
