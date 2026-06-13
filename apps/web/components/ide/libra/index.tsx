@@ -176,6 +176,18 @@ export default function Libra({
     }
   }, [codePreviewActive, currentPreviewMode])
 
+  // Sync chat panel collapse state without unmounting the panel
+  useEffect(() => {
+    if (isMobile) return
+
+    if (isChatOpen) {
+      chatPanelRef.current?.expand()
+    } else {
+      chatPanelRef.current?.collapse()
+      browserPanelRef.current?.resize(100)
+    }
+  }, [isChatOpen, isMobile])
+
   // Clear preview state when component unmounts
   useEffect(() => {
     return () => {
@@ -299,7 +311,6 @@ export default function Libra({
               }
               ref={chatPanelRef as any}
               collapsible
-              collapsed={!isChatOpen}
               onResize={PANEL_EVENTS.onChatResize}
             >
               {isChatOpen ? (
