@@ -3,7 +3,7 @@
     {
       "binding": "DATABASE",
       "database_name": "libra",
-      "database_id": "67910497-d3de-4085-ba2f-70c7d4ba5983",
+      "database_id": "80c73f31-abb5-458c-9ba6-11e06ed88fc1",
       "migrations_dir": "./db/migrations"
     }
   ]
