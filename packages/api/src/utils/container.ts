@@ -77,7 +77,7 @@ async function ensureSandboxEnv(): Promise<void> {
 
   try {
     const { env: cfEnv } = await getCloudflareContext({ async: true })
-    const cf = cfEnv as Record<string, string | undefined>
+    const cf = cfEnv as unknown as Record<string, string | undefined>
 
     let envUpdated = false
 
