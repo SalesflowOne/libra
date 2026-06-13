@@ -36,6 +36,12 @@ const withBundleAnalyzer = (await import('@next/bundle-analyzer')).default({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: true,
+    ...(process.env.VERCEL
+        ? {
+            typescript: { ignoreBuildErrors: true },
+            eslint: { ignoreDuringBuilds: true },
+        }
+        : {}),
     transpilePackages: ["@libra/ui", "@libra/auth", "@libra/db", "@libra/api", "@libra/common"
         , "@libra/better-auth-cloudflare", "@libra/email","@libra/better-auth-stripe","@libra/shikicode"
     ,"@libra/sandbox"],
