@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd ../.. && bun install && cd apps/web && bun run prebuild && next build",
+  "installCommand": "cd ../.. && curl -fsSL https://bun.sh/install | bash && export PATH=\"$HOME/.bun/bin:$PATH\" && bun install",
+  "framework": "nextjs"
+}

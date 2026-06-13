@@ -22,7 +22,10 @@ import { paraglideWebpackPlugin } from "@inlang/paraglide-js";
 import {initOpenNextCloudflareForDev} from "@opennextjs/cloudflare";
 
 // added by create cloudflare to enable calling `getCloudflareContext()` in `next dev`
-initOpenNextCloudflareForDev();
+// Skip on Vercel — workerd is Cloudflare-only and fails on Vercel's build image
+if (!process.env.VERCEL) {
+    initOpenNextCloudflareForDev();
+}
 
 // Dynamic import for bundle analyzer to handle ESM/CommonJS compatibility
 const withBundleAnalyzer = (await import('@next/bundle-analyzer')).default({
