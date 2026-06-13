@@ -31,6 +31,7 @@ import { getAuthDb } from './db'
 import { env as envs } from './env.mjs'
 import { getActiveOrganization, plugins } from './plugins'
 import { getAdminUserIds } from './env.mjs'
+import { getAuthProductionConfig } from './utils/auth-production-config'
 
 // Runtime auth builder using Cloudflare D1 and KV
 async function authBuilder() {
@@ -94,31 +95,8 @@ async function authBuilder() {
             clientSecret: envs.BETTER_GITHUB_CLIENT_SECRET as string,
           },
         },
-        // Enable cross-subdomain cookies for libra.dev and subdomains
-        ...(isDevelopment() ? {} : {
-          advanced: {
-            crossSubDomainCookies: {
-              enabled: true,
-              domain: '.libra.dev',
-            },
-          },
-          // Configure trusted origins for cross-subdomain authentication
-          trustedOrigins: [
-            'https://libra.dev',
-            'https://cdn.libra.dev',
-            'https://deploy.libra.dev',
-            'https://dispatcher.libra.dev',
-            'https://auth.libra.dev',
-            'https://api.libra.dev',
-            'https://docs.libra.dev',
-            'https://web.libra.dev',
-            // Development origins
-            'http://localhost:3000',
-            'http://localhost:3004',
-            'http://localhost:3008',
-            'http://localhost:3007',
-          ],
-        }),
+        // Enable cross-subdomain cookies for the deployed app domain and subdomains
+        ...(isDevelopment() ? {} : getAuthProductionConfig()),
         plugins: plugins ,
       }
     )
@@ -165,15 +143,8 @@ export const auth = betterAuth({
           clientSecret: envs.BETTER_GITHUB_CLIENT_SECRET as string,
         },
       },
-      // Enable cross-subdomain cookies for libra.dev and subdomains
-      ...(isDevelopment() ? {} : {
-        advanced: {
-          crossSubDomainCookies: {
-            enabled: true,
-            domain: '.libra.dev',
-          },
-        },
-      }),
+      // Enable cross-subdomain cookies for the deployed app domain and subdomains
+      ...(isDevelopment() ? {} : getAuthProductionConfig()),
       plugins: [
         admin({
           defaultRole: 'user',

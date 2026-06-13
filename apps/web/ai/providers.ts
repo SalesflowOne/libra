@@ -21,92 +21,128 @@
 import { env } from '@/env.mjs'
 import { anthropic } from '@ai-sdk/anthropic'
 import { createAzure } from '@ai-sdk/azure'
-import { xai } from '@ai-sdk/xai'
-import { createOpenRouter, openrouter } from '@openrouter/ai-sdk-provider'
-import { customProvider } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
+import { xai } from '@ai-sdk/xai'
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
+import { customProvider } from 'ai'
 
-/**
- * Define the configuration type, ensuring the baseURL type is correct.
- */
 type AzureConfig = {
   resourceName: string
   apiKey: string
   apiVersion: string
-  baseURL?: string // Set as optional property
+  baseURL?: string
+}
+
+function readEnv(key: string): string | undefined {
+  const fromProcess = process.env[key]
+  if (typeof fromProcess === 'string' && fromProcess.length > 0) {
+    return fromProcess
+  }
+
+  const fromEnv = (env as unknown as Record<string, unknown>)[key]
+  return typeof fromEnv === 'string' ? fromEnv : undefined
+}
+
+function isConfigured(value?: string | null): boolean {
+  if (!value?.trim()) return false
+  if (value.includes('placeholder')) return false
+  return true
+}
+
+function createAzureProvider() {
+  const azureConfig: AzureConfig = {
+    resourceName: readEnv('AZURE_RESOURCE_NAME') || '',
+    apiKey: readEnv('AZURE_API_KEY') || '',
+    apiVersion: 'preview',
+  }
+
+  const azureBaseUrl = readEnv('AZURE_BASE_URL')
+  if (azureBaseUrl) {
+    const baseUrl = azureBaseUrl.endsWith('/') ? azureBaseUrl : `${azureBaseUrl}/`
+    const accountId = readEnv('CLOUDFLARE_ACCOUNT_ID')
+    const gatewayName = readEnv('CLOUDFLARE_AIGATEWAY_NAME')
+    const resourceName = readEnv('AZURE_RESOURCE_NAME')
+
+    if (accountId && gatewayName && resourceName) {
+      azureConfig.baseURL = `${baseUrl}${accountId}/${gatewayName}/azure-openai/${resourceName}/openai`
+    }
+  }
+
+  return createAzure(azureConfig)
 }
 
 /**
- * Decide configuration options based on whether AZURE_BASE_URL exists.
+ * Build provider at request time so Cloudflare Worker secrets in process.env are available.
  */
-const azureConfig: AzureConfig = {
-  resourceName: env.AZURE_RESOURCE_NAME || '',
-  apiKey: env.AZURE_API_KEY || '',
-  apiVersion: 'preview',
+export function getMyProvider() {
+  const isAzureConfigured =
+    isConfigured(readEnv('AZURE_API_KEY')) && isConfigured(readEnv('AZURE_RESOURCE_NAME'))
+  const isOpenRouterConfigured = isConfigured(readEnv('OPENROUTER_API_KEY'))
+  const isOpenAIConfigured = isConfigured(readEnv('OPENAI_API_KEY'))
+
+  const openaiProvider = createOpenAI({
+    apiKey: readEnv('OPENAI_API_KEY') || '',
+  })
+
+  const azure = isAzureConfigured ? createAzureProvider() : null
+  const openrouterProvider = isOpenRouterConfigured
+    ? createOpenRouter({
+        apiKey: readEnv('OPENROUTER_API_KEY') || '',
+        headers: {
+          'HTTP-Referer': readEnv('NEXT_PUBLIC_APP_URL') || 'https://libra.dev',
+          'X-Title': 'Libra AI',
+        },
+      })
+    : null
+
+  const databricksClaude =
+    isConfigured(readEnv('DATABRICKS_TOKEN')) && isConfigured(readEnv('DATABRICKS_BASE_URL'))
+      ? createOpenAI({
+          baseURL: readEnv('DATABRICKS_BASE_URL'),
+          apiKey: readEnv('DATABRICKS_TOKEN') || '',
+        })
+      : null
+
+  const openaiModel = (model: string) => {
+    if (!isOpenAIConfigured) {
+      throw new Error(
+        'OpenAI is not configured. Set OPENAI_API_KEY on the worker or configure Azure OpenAI credentials.',
+      )
+    }
+    return openaiProvider(model)
+  }
+
+  return customProvider({
+    languageModels: {
+      'chat-model-reasoning-azure': isAzureConfigured
+        ? azure!(readEnv('AZURE_DEPLOYMENT_NAME') || 'gpt-4.1')
+        : openaiModel('gpt-4.1'),
+      'chat-model-reasoning-azure-mini': isAzureConfigured
+        ? azure!('gpt-4.1-mini')
+        : openaiModel('gpt-4.1-mini'),
+      'chat-model-reasoning-azure-nano': isAzureConfigured
+        ? azure!('gpt-4.1-nano')
+        : openaiModel('gpt-4.1-nano'),
+      'chat-model-databricks-claude': databricksClaude
+        ? databricksClaude('databricks-claude-3-7-sonnet')
+        : openaiModel('gpt-4.1'),
+      'chat-model-reasoning-anthropic': openrouterProvider
+        ? openrouterProvider('anthropic/claude-sonnet-4')
+        : isConfigured(readEnv('ANTHROPIC_API_KEY'))
+          ? anthropic('claude-sonnet-4-20250514')
+          : openaiModel('gpt-4.1'),
+      'chat-model-reasoning-google': openrouterProvider
+        ? openrouterProvider('google/gemini-2.5-pro-preview')
+        : openaiModel('gpt-4.1'),
+      'chat-model-reasoning-xai': isConfigured(readEnv('XAI_API_KEY'))
+        ? xai('grok-3-fast-beta')
+        : openaiModel('gpt-4.1'),
+    },
+    imageModels: {
+      'small-model-xai': xai.image('grok-2-image'),
+    },
+  })
 }
 
-/**
- * Only add custom baseURL if AZURE_BASE_URL exists.
- */
-if (env.AZURE_BASE_URL) {
-  // Fix URL concatenation, ensure no line breaks and correct path structure
-  const baseUrl = env.AZURE_BASE_URL.endsWith('/') ? env.AZURE_BASE_URL : `${env.AZURE_BASE_URL}/`
-  const accountId = env.CLOUDFLARE_ACCOUNT_ID
-  const gatewayName = env.CLOUDFLARE_AIGATEWAY_NAME
-  const resourceName = env.AZURE_RESOURCE_NAME
-
-  // Construct the complete baseURL for AI SDK v5, ensuring correct path separators
-  // AI SDK v5 expects baseURL without /v1 suffix, it will add /v1{path} automatically
-  azureConfig.baseURL = `${baseUrl}${accountId}/${gatewayName}/azure-openai/${resourceName}/openai`
-} else {
-}
-
-const azure = createAzure(azureConfig)
-
-/**
- * OpenRouter configuration for Claude and Gemini models
- */
-const openrouterConfig = {
-  apiKey: env.OPENROUTER_API_KEY || '',
-  headers: {
-    'HTTP-Referer': 'https://libra.dev',
-    'X-Title': 'Libra AI',
-  },
-}
-
-const openrouterProvider = createOpenRouter(openrouterConfig)
-
-/**
- * Databricks Claude configuration using OpenAI-compatible endpoint
- */
-const databricksClaude = createOpenAI({
-  baseURL: env.DATABRICKS_BASE_URL,
-  apiKey: env.DATABRICKS_TOKEN,
-})
-
-/**
- * Provider separation architecture:
- * - Azure OpenAI: All OpenAI models (gpt-4, etc.)
- * - OpenRouter: Claude and Gemini models
- * - Databricks: Claude models via OpenAI-compatible endpoint
- * - XAI: Grok models (kept for compatibility)
- */
-export const myProvider = customProvider({
-  languageModels: {
-
-    // Azure OpenAI models
-    'chat-model-reasoning-azure': azure(env.AZURE_DEPLOYMENT_NAME || 'o4-mini'),
-    'chat-model-reasoning-azure-mini': azure('gpt-4.1-mini'),
-    'chat-model-reasoning-azure-nano': azure('gpt-4.1-nano'),
-    // Databricks Claude models
-    'chat-model-databricks-claude': databricksClaude('databricks-claude-3-7-sonnet'),
-    'chat-model-reasoning-anthropic': openrouterProvider('anthropic/claude-sonnet-4'),
-    'chat-model-reasoning-google': openrouterProvider('google/gemini-2.5-pro-preview'),
-
-    // XAI models (kept for compatibility)
-    'chat-model-reasoning-xai': xai('grok-3-fast-beta'),
-  },
-  imageModels: {
-    'small-model-xai': xai.image('grok-2-image'),
-  },
-})
+// Backward-compatible export for any legacy imports
+export const myProvider = getMyProvider()

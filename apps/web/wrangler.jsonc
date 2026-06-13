@@ -19,7 +19,7 @@
   },
   "routes": [
     {
-      "pattern": "libra.dev",
+      "pattern": "libra.agentcloud.one",
       "custom_domain": true
     }
   ],
@@ -40,14 +40,14 @@
    * https://developers.cloudflare.com/workers/configuration/secrets/
    */
   "vars": {
-    "NEXT_PUBLIC_APP_URL": "https://libra.dev",
-    "NEXT_PUBLIC_CDN_URL": "https://cdn.libra.dev",
-    "NEXT_PUBLIC_DEPLOY_URL": "https://deploy.libra.dev",
-    "NEXT_PUBLIC_DISPATCHER_URL": "https://dispatcher.libra.dev",
-    "NEXT_PUBLIC_DOCS_URL": "https://docs.libra.dev",
-    "NEXT_PUBLIC_SCREENSHOT_URL": "https://screenshot.libra.dev",
+    "NEXT_PUBLIC_APP_URL": "https://libra.agentcloud.one",
+    "NEXT_PUBLIC_CDN_URL": "https://cdn.libra.agentcloud.one",
+    "NEXT_PUBLIC_DEPLOY_URL": "https://deploy.libra.agentcloud.one",
+    "NEXT_PUBLIC_DISPATCHER_URL": "https://dispatcher.libra.agentcloud.one",
+    "NEXT_PUBLIC_DOCS_URL": "https://docs.libra.agentcloud.one",
+    "NEXT_PUBLIC_SCREENSHOT_URL": "https://screenshot.libra.agentcloud.one",
     "NEXT_PUBLIC_SCAN": "0",
-    "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAABgQW7OpphMdlFWn",
+    "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAADjyQ-htPofYDSks",
     "NEXT_PUBLIC_SANDBOX_DEFAULT_PROVIDER": "e2b",
     "NEXT_PUBLIC_SANDBOX_BUILDER_DEFAULT_PROVIDER": "e2b",
     "NEXT_PUBLIC_POSTHOG_KEY": "phc_wBRTFUWUwNBj8GduilPefxNZAFBMU7j091feuG58n6h",
@@ -71,25 +71,25 @@
     {
       "binding": "DATABASE",
       "database_name": "libra",
-      "database_id": "67910497-d3de-4085-ba2f-70c7d4ba5983"
+      "database_id": "80c73f31-abb5-458c-9ba6-11e06ed88fc1"
     }
   ],
   // docker run --name libra -e POSTGRES_PASSWORD=postgres -d postgres
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
-      "id": "c00328e4ab70457fb86356e1e325ef7d",
+      "id": "6ce1e1159f114d178e40bdc1c40689e9",
       "localConnectionString": "postgresql://postgres:postgres@libra:5432/libra"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "0251e67dd0194dbab2d78c47e6d2cce9"
+      "id": "7b853aa217574c0da3005931813267f3"
     },
     {
       "binding": "CACHE",
-      "id": "69f9a5f9a5b9411a8d55ee35273837c4"
+      "id": "f79e79cef6d74214a7834d6591ef8ffa"
     }
   ],
   // R2 incremental cache

@@ -20,7 +20,7 @@
 
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ChatPanel from '@/components/ide/libra/chat-panel'
 import { CodeExplorer } from '@/components/ide/libra/filetree/code-explorer'
 import type { LibraProps } from '@/components/ide/types'
@@ -48,9 +48,7 @@ export default function Libra({
   usageData,
   isUsageLoading,
 }: LibraProps) {
-  // Generate unique IDs for panels
-  const browserPanelId = useId()
-  const chatPanelId = useId()
+  const [hasMounted, setHasMounted] = useState(false)
 
   // Validate initial messages
   const validatedMessages = useMemo(() => validateMessages(initialMessages), [initialMessages])
@@ -67,8 +65,8 @@ export default function Libra({
   const [activeTab, setActiveTab] = useState<'code'>('code')
   const [currentPreviewMode, setCurrentPreviewMode] = useState(codePreviewActive)
 
-  // Responsive state
-  const [isMobile, setIsMobile] = useState(false)
+  // Responsive state - null until measured to avoid panel layout flicker/crashes
+  const [isMobile, setIsMobile] = useState<boolean | null>(null)
   const [isTablet, setIsTablet] = useState(false)
 
   // Error monitoring state
@@ -137,6 +135,7 @@ export default function Libra({
       isChatOpen,
       setIsChatOpen,
       browserPanelRef,
+      chatPanelRef,
       setActiveTab,
     })
 
@@ -149,13 +148,18 @@ export default function Libra({
 
   // Handle responsive breakpoints
   useEffect(() => {
+    setHasMounted(true)
+
     const handleResize = () => {
       const width = window.innerWidth
-      setIsMobile(width < 768)
-      setIsTablet(width >= 768 && width < 1024)
+      const mobile = width < 768
+      const tablet = width >= 768 && width < 1024
+
+      setIsMobile(mobile)
+      setIsTablet(tablet)
 
       // Auto-close chat on mobile
-      if (width < 768 && isChatOpen) {
+      if (mobile && isChatOpen) {
         setIsChatOpen(false)
       }
     }
@@ -172,6 +176,18 @@ export default function Libra({
     }
   }, [codePreviewActive, currentPreviewMode])
 
+  // Sync chat panel collapse state without unmounting the panel
+  useEffect(() => {
+    if (isMobile) return
+
+    if (isChatOpen) {
+      chatPanelRef.current?.expand()
+    } else {
+      chatPanelRef.current?.collapse()
+      browserPanelRef.current?.resize(100)
+    }
+  }, [isChatOpen, isMobile])
+
   // Clear preview state when component unmounts
   useEffect(() => {
     return () => {
@@ -184,7 +200,11 @@ export default function Libra({
     return <ErrorDisplay />
   }
 
-  // Get responsive panel sizes
+  if (!hasMounted || isMobile === null) {
+    return <div className='h-full w-full bg-background' />
+  }
+
+  const showDesktopChatPanel = !isMobile
   const getBrowserPanelSize = () => {
     if (isMobile) return PANEL_CONFIG.browser.defaultSize.mobile
     if (isTablet) return PANEL_CONFIG.browser.defaultSize.tablet
@@ -232,6 +252,8 @@ export default function Libra({
 
       {/* Main content area */}
       <ResizablePanelGroup
+        key={isMobile ? 'mobile' : 'desktop'}
+        autoSaveId={isMobile ? undefined : 'libra-ide-layout'}
         direction={isMobile ? 'vertical' : 'horizontal'}
         className={PANEL_CONFIG.main.className}
         onLayout={PANEL_EVENTS.onLayout}
@@ -239,7 +261,6 @@ export default function Libra({
         {/* Browser panel */}
         <ResizablePanel
           defaultSize={getBrowserPanelSize()}
-          id={browserPanelId}
           order={1}
           minSize={getBrowserMinSize()}
           className={PANEL_CONFIG.browser.className}
@@ -274,39 +295,40 @@ export default function Libra({
           </div>
         </ResizablePanel>
 
-        {/* Chat panel - hidden on mobile (uses overlay instead) */}
-        {isChatOpen && !isMobile && (
+        {/* Chat panel - always mounted on desktop to keep PanelGroup stable */}
+        {showDesktopChatPanel && (
           <>
             <ResizableHandle
               onPointerDown={PANEL_EVENTS.onResizeStart}
               onPointerUp={PANEL_EVENTS.onResizeEnd}
             />
             <ResizablePanel
-              defaultSize={getChatPanelSize()}
-              id={chatPanelId}
+              defaultSize={isChatOpen ? getChatPanelSize() : 0}
               order={2}
-              minSize={PANEL_CONFIG.chat.minSize}
+              minSize={isChatOpen ? PANEL_CONFIG.chat.minSize : 0}
               maxSize={
                 isTablet ? PANEL_CONFIG.chat.maxSize.tablet : PANEL_CONFIG.chat.maxSize.desktop
               }
               ref={chatPanelRef as any}
-              collapsible={false}
+              collapsible
               onResize={PANEL_EVENTS.onChatResize}
             >
-              <ChatPanel
-                initialMessages={validatedMessages}
-                onClose={toggleChat}
-                onInspectorChange={setInspectorActive}
-                initialInspectorActive={inspectorActive}
-                browserPreviewRef={browserPreviewRef}
-                onFileClick={handleChatFileClick}
-                onFileContentUpdate={handleUpdateFileContent}
-                deployChanges={deployChanges}
-                usageData={usageData}
-                isUsageLoading={isUsageLoading}
-                detectedErrors={detectedErrors}
-                chatPanelRef={chatPanelMethodsRef}
-              />
+              {isChatOpen ? (
+                <ChatPanel
+                  initialMessages={validatedMessages}
+                  onClose={toggleChat}
+                  onInspectorChange={setInspectorActive}
+                  initialInspectorActive={inspectorActive}
+                  browserPreviewRef={browserPreviewRef}
+                  onFileClick={handleChatFileClick}
+                  onFileContentUpdate={handleUpdateFileContent}
+                  deployChanges={deployChanges}
+                  usageData={usageData}
+                  isUsageLoading={isUsageLoading}
+                  detectedErrors={detectedErrors}
+                  chatPanelRef={chatPanelMethodsRef}
+                />
+              ) : null}
             </ResizablePanel>
           </>
         )}

@@ -21,6 +21,10 @@
 import { sendOrganizationInvitation } from '../utils/email-service'
 import { organization } from 'better-auth/plugins'
 import { getSubscription } from '../utils/subscription-utils'
+import {
+  PLAN_TYPES,
+  createOrUpdateSubscriptionLimit,
+} from '../utils/subscription-limits'
 
 export const organizationPlugin = organization({
   async sendInvitationEmail(data: any) {
@@ -47,11 +51,27 @@ export const organizationPlugin = organization({
     //     },
     //   }
     // },
-    // afterCreate: async ({ organization, member, user }, request) => {
-    //   // Run custom logic after organization is created
-    //   // e.g., create default resources, send notifications
-    //   // await setupDefaultResources(organization.id)
-    // },
+    afterCreate: async ({ organization }) => {
+      const now = new Date()
+      const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+
+      try {
+        await createOrUpdateSubscriptionLimit(
+          organization.id,
+          null,
+          PLAN_TYPES.FREE,
+          now,
+          periodEnd,
+          undefined,
+          'month'
+        )
+      } catch (error) {
+        console.error(
+          `Failed to initialize FREE subscription limit for organization ${organization.id}:`,
+          error
+        )
+      }
+    },
   },
   allowUserToCreateOrganization: async (user) => {
     const subscription = await getSubscription(user.id)

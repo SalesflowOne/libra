@@ -30,6 +30,7 @@ interface UseLibraHandlersProps {
   isChatOpen: boolean
   setIsChatOpen: (open: boolean) => void
   browserPanelRef: React.RefObject<ImperativePanelHandle | null>
+  chatPanelRef: React.RefObject<ImperativePanelHandle | null>
   setActiveTab: (tab: 'code') => void
 }
 
@@ -41,6 +42,7 @@ export function useLibraHandlers({
   isChatOpen,
   setIsChatOpen,
   browserPanelRef,
+  chatPanelRef,
   setActiveTab,
 }: UseLibraHandlersProps) {
   const handleUpdateFileContent = useCallback(
@@ -62,11 +64,17 @@ export function useLibraHandlers({
   )
 
   const toggleChat = useCallback(() => {
-    if (isChatOpen && browserPanelRef.current) {
-      browserPanelRef.current.resize(100)
+    const nextOpen = !isChatOpen
+
+    if (nextOpen) {
+      chatPanelRef.current?.expand()
+    } else {
+      browserPanelRef.current?.resize(100)
+      chatPanelRef.current?.collapse()
     }
-    setIsChatOpen(!isChatOpen)
-  }, [isChatOpen, browserPanelRef, setIsChatOpen])
+
+    setIsChatOpen(nextOpen)
+  }, [isChatOpen, browserPanelRef, chatPanelRef, setIsChatOpen])
 
   const handleSetActiveTab = useCallback(
     (tab: 'code') => {

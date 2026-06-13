@@ -41,7 +41,6 @@ import { isExcludedFile } from './excludedFiles'
 import { getBusinessDb, parseMessageHistory, requireOrgAndUser } from './project'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { captureAndStoreScreenshot } from './screenshot-service'
-import {env} from "../../env.mjs";
 
 /**
  * Sandbox cleanup result interface
@@ -65,6 +64,39 @@ export interface TerminationOptions {
  * Global flag to track if sandbox factory is initialized
  */
 let sandboxFactoryInitialized = false
+
+/**
+ * Sync sandbox credentials from Cloudflare Worker bindings into process.env.
+ * Wrangler secrets are exposed on env bindings; the E2B SDK reads process.env.E2B_API_KEY.
+ */
+async function ensureSandboxEnv(): Promise<void> {
+  if (process.env.E2B_API_KEY?.trim() || process.env.DAYTONA_API_KEY?.trim()) {
+    return
+  }
+
+  try {
+    const { env: cfEnv } = await getCloudflareContext({ async: true })
+    const cf = cfEnv as unknown as Record<string, string | undefined>
+
+    let envUpdated = false
+
+    if (cf.E2B_API_KEY?.trim()) {
+      process.env.E2B_API_KEY = cf.E2B_API_KEY
+      envUpdated = true
+    }
+
+    if (cf.DAYTONA_API_KEY?.trim()) {
+      process.env.DAYTONA_API_KEY = cf.DAYTONA_API_KEY
+      envUpdated = true
+    }
+
+    if (envUpdated) {
+      sandboxFactoryInitialized = false
+    }
+  } catch {
+    // Local dev or non-Cloudflare runtime
+  }
+}
 
 /**
  * Get the default sandbox provider from configuration or environment
@@ -148,12 +180,33 @@ async function ensureSandboxFactory(): Promise<boolean> {
  * @returns {Promise<any>} Sandbox instance (ISandbox or native E2B)
  * @throws {Error} If both abstraction layer and E2B fallback fail
  */
+function assertSandboxCredentials(provider: SandboxProviderType): void {
+  if (provider === 'e2b' && !process.env.E2B_API_KEY?.trim()) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message:
+        'Sandbox provider is not configured. Set E2B_API_KEY on the worker (https://e2b.dev/dashboard?tab=keys).',
+    })
+  }
+
+  if (provider === 'daytona' && !process.env.DAYTONA_API_KEY?.trim()) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message:
+        'Sandbox provider is not configured. Set DAYTONA_API_KEY on the worker or switch NEXT_PUBLIC_SANDBOX_DEFAULT_PROVIDER to e2b.',
+    })
+  }
+}
+
 export async function getSandboxInstance(
   operation: 'create' | 'connect' | 'resume',
   templateOrId: string,
   options: { timeoutMs?: number } = {}
 ): Promise<any> {
+  await ensureSandboxEnv()
+
   const provider = getDefaultSandboxProvider()
+  assertSandboxCredentials(provider)
 
   const factoryAvailable = await ensureSandboxFactory()
 
@@ -222,7 +275,10 @@ export async function prepareContainer(
   projectId: string,
   projectData: { containerId?: string; messageHistory: string }
 ): Promise<any> {
-  const envProvider = env.NEXT_PUBLIC_SANDBOX_DEFAULT_PROVIDER as SandboxProviderType
+  await ensureSandboxEnv()
+
+  const envProvider = (process.env.NEXT_PUBLIC_SANDBOX_DEFAULT_PROVIDER ||
+    'e2b') as SandboxProviderType
   // Use unified configuration for template selection
   const TEMPLATE = TEMPLATE_MAPPINGS.getTemplateForProvider(envProvider || 'e2b', 'basic')
 
@@ -383,13 +439,16 @@ async function syncFilesToContainer(container: ISandbox, messageHistory: string)
         throw new Error(`Failed to sync files: ${errorDetails}`)
       }
     }
-    // Fallback for native E2B container
-    // else if (container.files && container.files.write) {
-    //   await container.files.write(filesToWrite)
-    // }
-    // No supported file writing method
+    // Fallback for native E2B container when abstraction layer is unavailable
     else {
-      throw new Error('Container does not support file writing operations')
+      const nativeContainer = container as unknown as {
+        files?: { write?: (files: typeof filesToWrite) => Promise<void> }
+      }
+      if (nativeContainer.files?.write) {
+        await nativeContainer.files.write(filesToWrite)
+      } else {
+        throw new Error('Container does not support file writing operations')
+      }
     }
   })
 
