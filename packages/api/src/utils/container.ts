@@ -440,10 +440,15 @@ async function syncFilesToContainer(container: ISandbox, messageHistory: string)
       }
     }
     // Fallback for native E2B container when abstraction layer is unavailable
-    else if ((container as { files?: { write?: (files: typeof filesToWrite) => Promise<void> } }).files?.write) {
-      await (container as { files: { write: (files: typeof filesToWrite) => Promise<void> } }).files.write(filesToWrite)
-    } else {
-      throw new Error('Container does not support file writing operations')
+    else {
+      const nativeContainer = container as unknown as {
+        files?: { write?: (files: typeof filesToWrite) => Promise<void> }
+      }
+      if (nativeContainer.files?.write) {
+        await nativeContainer.files.write(filesToWrite)
+      } else {
+        throw new Error('Container does not support file writing operations')
+      }
     }
   })
 
