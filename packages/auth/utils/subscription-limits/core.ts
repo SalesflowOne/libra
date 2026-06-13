@@ -701,7 +701,7 @@ export async function getSubscriptionUsage(organizationId: string): Promise<Subs
         })
       }
 
-      const limits = (await db
+      let limits = (await db
         .select()
         .from(subscriptionLimit)
         .where(
@@ -712,7 +712,41 @@ export async function getSubscriptionUsage(organizationId: string): Promise<Subs
         )) as SubscriptionLimitRecord[]
 
       if (limits.length === 0) {
-        return createDefaultUsage()
+        const now = new Date()
+        const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+
+        try {
+          await createOrUpdateSubscriptionLimit(
+            organizationId,
+            null,
+            PLAN_TYPES.FREE,
+            now,
+            periodEnd,
+            undefined,
+            'month'
+          )
+
+          limits = (await db
+            .select()
+            .from(subscriptionLimit)
+            .where(
+              and(
+                eq(subscriptionLimit.organizationId, organizationId),
+                eq(subscriptionLimit.isActive, true)
+              )
+            )) as SubscriptionLimitRecord[]
+
+          if (limits.length === 0) {
+            return createDefaultUsage()
+          }
+        } catch (error) {
+          log.subscription('error', 'Failed to auto-initialize FREE subscription limit', {
+            organizationId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            operation: 'getSubscriptionUsage',
+          })
+          return createDefaultUsage()
+        }
       }
 
   const authDb = await getAuthDb()
