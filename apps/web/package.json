@@ -58,7 +58,7 @@
     "file-saver": "^2.0.5",
     "jszip": "^3.10.1",
     "motion": "^12.23.19",
-    "next": "^15.5.4",
+    "next": "^15.5.19",
     "nextjs-toploader": "^3.9.17",
     "posthog-js": "^1.268.1",
     "posthog-node": "^5.8.8",
