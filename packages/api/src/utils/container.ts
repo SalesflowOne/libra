@@ -67,6 +67,39 @@ export interface TerminationOptions {
 let sandboxFactoryInitialized = false
 
 /**
+ * Sync sandbox credentials from Cloudflare Worker bindings into process.env.
+ * Wrangler secrets are exposed on env bindings; the E2B SDK reads process.env.E2B_API_KEY.
+ */
+async function ensureSandboxEnv(): Promise<void> {
+  if (process.env.E2B_API_KEY?.trim() || process.env.DAYTONA_API_KEY?.trim()) {
+    return
+  }
+
+  try {
+    const { env: cfEnv } = await getCloudflareContext({ async: true })
+    const cf = cfEnv as Record<string, string | undefined>
+
+    let envUpdated = false
+
+    if (cf.E2B_API_KEY?.trim()) {
+      process.env.E2B_API_KEY = cf.E2B_API_KEY
+      envUpdated = true
+    }
+
+    if (cf.DAYTONA_API_KEY?.trim()) {
+      process.env.DAYTONA_API_KEY = cf.DAYTONA_API_KEY
+      envUpdated = true
+    }
+
+    if (envUpdated) {
+      sandboxFactoryInitialized = false
+    }
+  } catch {
+    // Local dev or non-Cloudflare runtime
+  }
+}
+
+/**
  * Get the default sandbox provider from configuration or environment
  * Uses a hybrid approach: factory config first, then environment variable, then fallback to 'e2b'
  *
@@ -171,6 +204,8 @@ export async function getSandboxInstance(
   templateOrId: string,
   options: { timeoutMs?: number } = {}
 ): Promise<any> {
+  await ensureSandboxEnv()
+
   const provider = getDefaultSandboxProvider()
   assertSandboxCredentials(provider)
 
@@ -241,6 +276,8 @@ export async function prepareContainer(
   projectId: string,
   projectData: { containerId?: string; messageHistory: string }
 ): Promise<any> {
+  await ensureSandboxEnv()
+
   const envProvider = env.NEXT_PUBLIC_SANDBOX_DEFAULT_PROVIDER as SandboxProviderType
   // Use unified configuration for template selection
   const TEMPLATE = TEMPLATE_MAPPINGS.getTemplateForProvider(envProvider || 'e2b', 'basic')
@@ -402,12 +439,10 @@ async function syncFilesToContainer(container: ISandbox, messageHistory: string)
         throw new Error(`Failed to sync files: ${errorDetails}`)
       }
     }
-    // Fallback for native E2B container
-    // else if (container.files && container.files.write) {
-    //   await container.files.write(filesToWrite)
-    // }
-    // No supported file writing method
-    else {
+    // Fallback for native E2B container when abstraction layer is unavailable
+    else if (container.files?.write) {
+      await container.files.write(filesToWrite)
+    } else {
       throw new Error('Container does not support file writing operations')
     }
   })
