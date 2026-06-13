@@ -22,7 +22,7 @@ import { tryCatch } from '@libra/common'
 import { streamText } from 'ai'
 import { buildGenerationContext, fetchProjectData, validateQuota } from './context'
 import { buildProviderOptions, selectModel } from './models'
-import { myProvider } from './providers'
+import { getMyProvider } from './providers'
 // Import types from separate module
 import type { GenerationConfig, GenerationMessage, ImageData, SelectedItem } from './types.js'
 import {
@@ -75,7 +75,7 @@ export const generateStreamResponse = async (
 
     // Generate response
     const streamResult = streamText({
-      model: myProvider.languageModel(selectedModel),
+      model: getMyProvider().languageModel(selectedModel),
       system: systemPromptText,
       messages,
       ...(abortSignal && { abortSignal }),
